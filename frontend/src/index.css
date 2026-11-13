@@ -1,111 +1,224 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #efeff2;
+  background: #0e1012;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+* { box-sizing: border-box; }
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+html, body, #root { width: 100%; min-height: 100%; }
 
 body {
   margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(55, 62, 75, .24), transparent 45%),
+    #0e1012;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+button {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+}
+
+.calculator {
+  width: min(860px, 100%);
+  height: min(600px, calc(100dvh - 80px));
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 15px;
+}
+
+.calculator-main, .history-panel {
+  border: 1px solid #30343a;
+  border-radius: 17px;
+  background: #1b1e22;
+  box-shadow: 0 18px 30px rgba(0, 0, 0, .22);
+}
+
+.calculator-main { padding: 25px 22px; }
+.calculator-main { min-width: 0; }
+.history-toggle, .history-close { display: none; }
+
+.display {
+  height: 170px;
+  padding: 65px 9px 0;
+  text-align: right;
+  position: relative;
+}
+.display p { margin: 0 0 5px; overflow-wrap: anywhere; color: #656568; font-size: 12px; }
+.display-expression {
+  max-height: 72px;
+  overflow: hidden;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+}
+.display strong {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: #f0f2f4;
+  font-size: clamp(2rem, 8vw, 2.8rem);
+  font-weight: 400;
+  letter-spacing: -.8px;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(6, minmax(50px, 1fr));
+  gap: 9px;
+}
+.keypad button {
+  min-height: 50px;
+  border: 1px solid rgba(255, 255, 255, .025);
+  border-radius: 11px;
+  background: #292e34;
+  color: #d7d7da;
+  font-size: 17px;
+  box-shadow: 0 3px 4px rgba(0, 0, 0, .2);
+  transition: background .15s ease, transform .15s ease;
+}
+.keypad button:hover { background: #343a42; }
+.keypad button:active { transform: translateY(1px); }
+.keypad .clear { background: #bd6f4f; color: #ffece2; }
+.keypad .delete { background: #293038; color: #d8aa9d; }
+.keypad .number, .keypad .digit { background: #3a3f47; color: #f0f2f4; }
+.keypad .operator { background: #303944; color: #aab8ca; }
+.keypad .power { background: #303944; color: #b7c4d6; }
+.keypad .equals {
+  background: #e8edf2;
+  color: #101216;
+  font-size: 20px;
+}
+.keypad .zero { grid-column: span 2; }
+.keypad button.empty { visibility: hidden; pointer-events: none; }
+
+.history-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 19px 18px;
+}
+.history-header { display: flex; align-items: center; justify-content: space-between; }
+.history-header h2 { margin: 0; color: #dddde0; font-size: 14px; font-weight: 500; }
+.history-header button {
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: #293441;
+  color: #9daac0;
+  font-size: 11px;
+}
+.history-header button:not(:disabled):hover { background: #334154; }
+.history-header button:disabled { cursor: default; }
+.history-actions { display: flex; align-items: center; gap: 7px; }
+.history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 21px 0 12px 14px;
+  direction: rtl;
+  scrollbar-color: #4a5360 transparent;
+  scrollbar-width: thin;
+}
+.history-list::-webkit-scrollbar { width: 5px; }
+.history-list::-webkit-scrollbar-thumb { border-radius: 5px; background: #4a5360; }
+.history-item, .empty-history { direction: ltr; }
+.empty-history { display: grid; place-content: center; height: 80%; color: #9a9da3; font-size: 12px; text-align: center; }
+.empty-history span { margin-bottom: 10px; color: #aeb3ba; font-size: 25px; }
+.empty-history p { line-height: 1.35; }
+.history-item { margin-bottom: 25px; text-align: right; }
+.history-item p { margin: 0 0 3px; color: #858589; font-size: 12px; }
+.history-item strong { display: block; color: #e6e6e9; font-size: 21px; font-weight: 400; }
+
+@media (max-width: 760px) {
+  :root { --safe-bottom: env(safe-area-inset-bottom, 0px); }
+  html, body, #root { height: 100dvh; min-height: 0; overflow: hidden; }
+  .app-shell {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    padding: 0 0 var(--safe-bottom);
+    overflow: hidden;
+  }
+  .calculator { width: 100%; height: 100%; min-height: 0; grid-template-columns: 1fr; overflow: hidden; }
+  .calculator-main {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    border-radius: 0;
+    overflow: hidden;
+  }
+  .display { flex: 1; min-height: 0; height: auto; }
+  .history-toggle {
+    display: block;
+    margin: 0 0 10px auto;
+    padding: 8px 11px;
+    border: 1px solid #3b4654;
+    border-radius: 9px;
+    background: #293441;
+    color: #b6c2d5;
+    font-size: 12px;
+  }
+  .history-overlay {
+    position: fixed;
+    inset: 0;
+    bottom: var(--safe-bottom);
+    z-index: 4;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, .58);
+  }
+  .history-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: var(--safe-bottom);
+    z-index: 5;
+    width: min(320px, 86vw);
+    min-height: 100vh;
+    border-radius: 17px 0 0 17px;
+    transform: translateX(105%);
+    transition: transform .22s ease;
+  }
+  .history-panel.is-open { transform: translateX(0); }
+  .history-close {
+    display: block;
+    padding: 0 3px;
+    background: transparent;
+    color: #b6c2d5;
+    font-size: 22px;
+    line-height: 1;
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+@media (max-width: 500px) {
+  .calculator-main { padding: 17px 13px; }
+  .display { min-height: 0; padding-top: 43px; }
+  .display strong { font-size: 39px; }
+  .keypad { gap: 6px; grid-template-rows: repeat(6, minmax(48px, 1fr)); }
+  .keypad button { min-height: 48px; font-size: 16px; }
 }

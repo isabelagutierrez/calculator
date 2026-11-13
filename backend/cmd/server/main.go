@@ -1,18 +1,13 @@
 package main
 
 import (
-	"log" 
+	"log"
 	"net/http"
+
+	"github.com/isabelagutierrez/calculator/backend/internal/api"
 )
 
-func main(){
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET/health", func(w http.ResponseWriter, r * http.Request){
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
-	})
-
+func main() {
 	log.Println("listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", mux))
+	log.Fatal(http.ListenAndServe(":8080", api.NewHandler()))
 }

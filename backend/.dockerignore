@@ -1,0 +1,4 @@
+.git
+coverage
+coverage.out
+Dockerfile
