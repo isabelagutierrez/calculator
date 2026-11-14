@@ -1,144 +1,167 @@
 # Calculator
 
-![CI](https://github.com/isabelagutierrez/calculator/actions/workflows/ci.yml/badge.svg)
+A full-stack calculator with a React and TypeScript frontend and a Go REST API.
 
-Full-stack calculator with a React/TypeScript interface and a dependency-free
-Go API. It supports addition, subtraction, multiplication, division,
-exponents, square roots, percentages, parentheses, history, and keyboard input.
+## Features
 
-## Project structure
-
-```text
-backend/
-  cmd/server/
-  internal/{api,calculator}/
-frontend/src/
-  calculator/
-  components/
-docs/coverage/
-```
+- Addition, subtraction, multiplication, division, exponentiation, square root, and percentage.
+- Parenthesized expressions with standard operator precedence.
+- Input validation and user-friendly error messages.
+- Keyboard support and responsive mobile layout.
+- Internal history panel with independent scrolling.
+- Backend validation for missing, invalid, non-finite, and unsafe operations.
 
 ## Requirements
 
-- Go 1.22+
-- Node.js 22.12+ (Vitest 5 does not run on Node 20)
+- Go 1.27.4 or newer
+- Node.js 20 or newer
 - npm
-- Docker (optional)
 
-## Local development
+## Run locally
 
-```bash
+Start the backend:
+
+```powershell
 cd backend
 go run ./cmd/server
 ```
 
-In another terminal:
+The API listens on `http://localhost:8080`.
 
-```bash
+In another terminal, start the frontend:
+
+```powershell
 cd frontend
-npm ci
+npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. Vite listens on all interfaces, so a phone on
-the same network can use `http://<computer-ip>:5173`.
+The Vite development server listens on `http://localhost:5173` and proxies
+`/api` requests to the backend.
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `PORT` | `8080` | Backend listen port |
-| `CORS_ALLOWED_ORIGIN` | `*` | Allowed browser origin |
-| `VITE_API_BASE_URL` | current origin | API base URL used by the frontend |
+To access the frontend from a phone on the same local network:
 
-## Docker
-
-```bash
-docker compose up --build
+```powershell
+npm run dev
 ```
 
-The application is available at `http://localhost:3000`. Stop it with
-`docker compose down`. Nginx serves the frontend and proxies `/api/` to Go.
+Then open `http://<computer-ip>:5173` on the phone. The Vite host is configured
+for local-network access in [frontend/vite.config.ts](frontend/vite.config.ts).
 
 ## API
 
-All POST requests require `Content-Type: application/json` (a charset
-parameter is accepted).
+All operation endpoints accept `POST` requests with JSON and return:
 
-| Method | Route | Body | Success |
-| --- | --- | --- | --- |
-| GET | `/health` | none | `{"status":"ok"}` |
-| POST | `/api/add`, `/api/subtract`, `/api/multiply`, `/api/divide`, `/api/power` | `{"left":8,"right":4}` | `{"result":...}` |
-| POST | `/api/square-root`, `/api/percentage` | `{"value":81}` | `{"result":...}` |
-| POST | `/api/calculate` | `{"expression":"8 + 8"}` | `{"result":16}` |
-
-Errors use `{"error":"message"}`. Status codes are: 200 success, 400 invalid
-JSON or fields, 404 unknown route, 405 wrong method, 413 body over 8 KiB,
-415 wrong content type, 422 invalid mathematical expression or operation, and
-500 unexpected server failure.
-
-```bash
-curl -H "Content-Type: application/json" -d '{"left":8,"right":4}' http://localhost:8080/api/add
-curl -H "Content-Type: application/json" -d '{"expression":"2 ^ 3 ^ 2"}' http://localhost:8080/api/calculate
-curl -H "Content-Type: application/json" -d '{"left":8,"right":0}' http://localhost:8080/api/divide
+```json
+{ "result": 16 }
 ```
 
-On Windows PowerShell, use `curl.exe` instead of the PowerShell `curl` alias.
+### Binary operations
 
-## Expression evaluator
+```http
+POST /api/add
+Content-Type: application/json
 
-The parser uses a lexer and recursive descent grammar:
-
-```text
-expression = term { ("+" | "-") term }
-term       = unary { ("*" | "/") unary }
-unary      = { "+" | "-" } power
-power      = primary [ "^" unary ]
-primary    = number | "(" expression ")"
+{ "left": 8, "right": 8 }
 ```
 
-Power is right associative and has higher precedence than unary signs, so
-`-2 ^ 2` is `-4`. ASCII operators and `×`, `÷`, `−`, and `xʸ` are accepted.
-Expressions are limited to 500 runes, 100 parenthesis levels, and 8 KiB HTTP
-bodies. The backend is the only source of truth; it never uses `eval`.
+Available binary endpoints:
 
-## Tests and coverage
+- `/api/add`
+- `/api/subtract`
+- `/api/multiply`
+- `/api/divide`
+- `/api/power`
 
-```bash
-make test
-make lint
-make coverage
+### Unary operations
+
+```http
+POST /api/square-root
+Content-Type: application/json
+
+{ "value": 81 }
 ```
 
-Backend coverage is written to `backend/coverage.html`; frontend HTML and LCOV
-reports are written to `frontend/coverage/`. Text snapshots are kept in
-[docs/coverage/](docs/coverage/). Coverage thresholds are 90% for backend
-internal packages and 85% lines/statements/functions plus 80% branches for
-frontend.
+Available unary endpoints:
 
-`npm audit fix` leaves moderate vulnerabilities in development-only
-TypeScript/ESLint tooling; resolving them requires the breaking `--force`
-upgrade, which is intentionally not used.
+- `/api/square-root`
+- `/api/percentage`
 
-## Design decisions and limitations
+### Expression evaluation
 
-The pure frontend reducer is independently testable and stores tokenized
-expressions. The Go parser keeps arithmetic rules, positions, and defensive
-limits in one place. Nginx provides same-origin production proxying, while
-timeouts and recovery middleware protect both layers. HTTP 400 means malformed
-input; HTTP 422 means valid input that cannot be calculated. `float64` is used
-for API interoperability and therefore has normal floating-point precision.
+The frontend sends accumulated expressions to the backend:
 
-Percentage means divide by 100, not contextual percentage arithmetic. Implicit
-multiplication such as `2(3)` is not supported. History is in memory and is
-lost on reload. The display shows up to 12 significant digits.
+```http
+POST /api/calculate
+Content-Type: application/json
 
-## Keyboard shortcuts
+{ "expression": "8 × 8 + (2 ^ 3)" }
+```
 
-Digits, `.`, `+`, `-`, `*`, `/`, `^`, `%`, parentheses, Enter, Backspace,
-Delete, `c`, `Escape`, and `±` are supported. Ctrl, Meta, and Alt modified
-events are ignored so browser shortcuts remain available.
+The evaluator supports `+`, `-`, `×`, `÷`, `^`, and parentheses. The
+`/health` endpoint returns `{ "status": "ok" }`.
 
-## AI use
+Errors use a JSON response such as:
 
-The implementation was reviewed and verified with AI assistance. The
-chronological prompts and a manual verification summary are in
-[PROMPTS.md](PROMPTS.md).
+```json
+{ "error": "cannot divide by zero" }
+```
+
+## Testing and coverage
+
+Run backend tests and coverage:
+
+```powershell
+cd backend
+go test ./... -cover
+go test ./internal/... -coverprofile coverage.out
+go tool cover -html=coverage.out -o coverage.html
+```
+
+Run frontend tests:
+
+```powershell
+cd frontend
+npm test -- --run
+npm run build
+npm run lint
+```
+
+The root [Makefile](Makefile) also provides `make backend`, `make frontend`,
+`make test`, `make docker-up`, `make docker-down`, `make docker-build`, and
+`make docker-logs` targets when Make is available.
+
+## Docker
+
+Build and start the frontend and backend together:
+
+```powershell
+docker compose up --build
+```
+
+Open the application at `http://localhost:3000`. The frontend container serves
+the production React build through Nginx and proxies API requests to the
+backend container. The backend is not exposed directly to the host.
+
+Stop the containers with:
+
+```powershell
+docker compose down
+```
+
+The same Docker commands are available through Make:
+
+```powershell
+make docker-up       # Build and start the application
+make docker-down     # Stop and remove containers
+make docker-build    # Build images without starting them
+make docker-logs     # Follow container logs
+```
+
+## Design rationale
+
+The frontend owns input presentation, responsive layout, keyboard handling, and
+history display. The backend owns expression evaluation and arithmetic
+validation so the same rules can be tested independently of the browser.
+Handlers are kept separate from the calculator package, allowing arithmetic
+unit tests and HTTP contract tests to remain focused.

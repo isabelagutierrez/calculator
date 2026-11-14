@@ -1,86 +1,302 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './index.css'
-import { evaluateExpression, percentage, squareRoot } from './api'
-import { reducer, initialState, expressionTokens, serializeTokens, type Operator } from './calculator/state'
-import { Display } from './components/Display'
-import { HistoryPanel } from './components/HistoryPanel'
-import { Keypad } from './components/Keypad'
+import { calculateExpression as calculateWithApi, calculateUnary } from './api'
+
+type Operator = '+' | '−' | '×' | '÷' | 'xʸ'
+
+const keys = [
+  ['C', '⌫', '%', '÷'],
+  ['√', 'xʸ', '(', ')'],
+  ['7', '8', '9', '×'],
+  ['4', '5', '6', '−'],
+  ['1', '2', '3', '+'],
+  ['0', '.', '='],
+]
+
+type HistoryItem = { expression: string; result: string }
+
+const formatNumber = (value: number) => {
+  const formatted = value.toPrecision(8)
+  return formatted.includes('e')
+    ? formatted.replace(/\.?0+e/, 'e')
+    : formatted.replace(/\.?0+$/, '')
+}
+
+const formatInput = (value: string) => {
+  if (value === '' || value === '0.') return value
+  const digitCount = value.replace(/[-.]/g, '').length
+  if (digitCount <= 8) return value
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? formatNumber(numericValue) : 'Error'
+}
 
 function App() {
-  const [state, dispatch] = useReducer(reducer, initialState)
+  const [display, setDisplay] = useState('0')
+  const [rawInput, setRawInput] = useState('0')
+  const [expression, setExpression] = useState('')
+  const [waitingForOperand, setWaitingForOperand] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [history, setHistory] = useState<HistoryItem[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [isCalculating, setIsCalculating] = useState(false)
 
-  const handleKey = useCallback(async (key: string) => {
-    if (state.pending) return
-    if (/^\d$/.test(key)) return dispatch({ type: 'digit', value: key })
-    if (key === '.') return dispatch({ type: 'decimal' })
-    if (key === 'C') return dispatch({ type: 'clear' })
-    if (key === '⌫') return dispatch({ type: 'backspace' })
-    if (key === '±') return dispatch({ type: 'sign' })
-    if (key === '(') return dispatch({ type: 'openParen' })
-    if (key === ')') return dispatch({ type: 'closeParen' })
-    if (['+', '−', '×', '÷', 'xʸ'].includes(key)) {
-      const operator: Operator = ({ '+': '+', '−': '-', '×': '*', '÷': '/', xʸ: '^' } as Record<string, Operator>)[key]
-      return dispatch({ type: 'operator', value: operator })
+  const showError = (message: string) => {
+    setError(message)
+    setDisplay('Error')
+    setWaitingForOperand(true)
+  }
+
+  const clear = () => {
+    setDisplay('0')
+    setRawInput('0')
+    setExpression('')
+    setWaitingForOperand(false)
+    setError(null)
+  }
+
+  const clearHistory = () => setHistory([])
+
+  const addHistoryItem = (expression: string, result: number) => {
+    setHistory((current) => [
+      { expression: `${expression} =`, result: formatNumber(result) },
+      ...current,
+    ].slice(0, 20))
+  }
+
+  const getValue = () => {
+    if (display.trim() === '') throw new Error('Enter a number.')
+    const value = Number(display)
+    if (!Number.isFinite(value)) throw new Error('Invalid number.')
+    return value
+  }
+
+  const enterNumber = (value: string) => {
+    if (error) clear()
+    if (waitingForOperand) {
+      setDisplay(value)
+      setRawInput(value)
+      setExpression((current) => `${current}${value}`)
+      setWaitingForOperand(false)
+      return
     }
-    if (key === '=') {
-      const tokens = expressionTokens(state, true)
-      const last = tokens[tokens.length - 1]
-      if (!tokens.length) return
-      if (last?.kind === 'operator' || last?.value === '(') return dispatch({ type: 'hint', value: 'Complete the expression first.' })
-      const expression = serializeTokens(tokens, 'api')
-      dispatch({ type: 'pending', value: true })
-      try {
-        const result = await evaluateExpression(expression)
-        dispatch({ type: 'result', expression: serializeTokens(tokens, 'display'), value: result })
-      } catch (error) {
-        dispatch({ type: 'error', value: error instanceof Error ? error.message : 'The calculation service is unavailable. Please try again.' })
-      } finally {
-        dispatch({ type: 'pending', value: false })
+    const nextRawInput = rawInput === '0' ? value : `${rawInput}${value}`
+    const nextValue = formatInput(nextRawInput)
+    if (nextValue === 'Error') {
+      showError('Number is too large.')
+      return
+    }
+    setRawInput(nextRawInput)
+    setDisplay(nextValue)
+    setExpression((current) => current ? `${current}${value}` : nextRawInput)
+  }
+
+  const enterDecimal = () => {
+    if (error) clear()
+    if (waitingForOperand) {
+      setDisplay('0.')
+      setRawInput('0.')
+      setExpression((current) => `${current}0.`)
+      setWaitingForOperand(false)
+      return
+    }
+    if (!rawInput.includes('.')) {
+      const nextRawInput = `${rawInput}.`
+      setRawInput(nextRawInput)
+      setDisplay(nextRawInput)
+      setExpression((current) => current ? `${current}.` : nextRawInput)
+    }
+  }
+
+  const chooseOperator = (selectedOperator: Operator) => {
+    try {
+      if (waitingForOperand) {
+        if (expression.trim().endsWith(')')) {
+          setExpression((current) => `${current} ${selectedOperator} `)
+        } else {
+          setExpression((current) => current.replace(/[+−×÷xʸ]\s*$/, `${selectedOperator} `))
+        }
+      } else {
+        setExpression((current) => `${current || display} ${selectedOperator} `)
+      }
+      setDisplay('')
+      setRawInput('')
+      setWaitingForOperand(true)
+      setError(null)
+    } catch (calculationError) {
+      showError(calculationError instanceof Error ? calculationError.message : 'Operation failed.')
+    }
+  }
+
+  const calculateResult = async () => {
+    if (!expression.trim()) return
+    setIsCalculating(true)
+    try {
+      const result = await calculateWithApi(expression)
+      addHistoryItem(expression, result)
+      setDisplay(formatNumber(result))
+      setRawInput(String(result))
+      setExpression('')
+      setWaitingForOperand(true)
+    } catch (calculationError) {
+      showError(calculationError instanceof Error ? calculationError.message : 'Operation failed.')
+    } finally {
+      setIsCalculating(false)
+    }
+  }
+
+  const applyUnaryOperation = async (operation: 'percent' | 'squareRoot' | 'sign') => {
+    try {
+      const value = getValue()
+      setIsCalculating(true)
+      const result = operation === 'sign'
+        ? -value
+        : await calculateUnary(operation === 'percent' ? 'percentage' : 'square-root', value)
+      const symbol = operation === 'percent' ? '%' : operation === 'squareRoot' ? '√' : '±'
+      addHistoryItem(`${symbol}(${value})`, result)
+      setDisplay(formatNumber(result))
+      setRawInput(String(result))
+      setWaitingForOperand(false)
+      setError(null)
+    } catch (calculationError) {
+      showError(calculationError instanceof Error ? calculationError.message : 'Operation failed.')
+    } finally {
+      setIsCalculating(false)
+    }
+  }
+
+  const enterParenthesis = (parenthesis: '(' | ')') => {
+    if (parenthesis === '(') {
+      if (expression === '' || /[+−×÷xʸ]\s*$/.test(expression) || expression.endsWith('(')) {
+        setExpression((current) => `${current}(`)
+        setDisplay('')
+        setRawInput('')
+        setWaitingForOperand(true)
       }
       return
     }
-    if (key === '√' || key === '%') {
-      if (!state.current) return
-      const value = Number(state.current)
-      if (!Number.isFinite(value)) return
-      dispatch({ type: 'pending', value: true })
-      try {
-        const result = key === '√' ? await squareRoot(value) : await percentage(value)
-        dispatch({ type: 'unaryResult', expression: `${key}(${state.current})`, value: result })
-      } catch (error) {
-        dispatch({ type: 'error', value: error instanceof Error ? error.message : 'The calculation service is unavailable. Please try again.' })
-      } finally {
-        dispatch({ type: 'pending', value: false })
-      }
-    }
-  }, [state])
 
-  const keyRef = useRef(handleKey)
-  useEffect(() => { keyRef.current = handleKey }, [handleKey])
+    if (/\d$/.test(expression) || expression.endsWith(')')) {
+      setExpression((current) => `${current})`)
+      setDisplay('')
+      setRawInput('')
+      setWaitingForOperand(true)
+    }
+  }
+
+  const removeLastCharacter = () => {
+    if (error || waitingForOperand) return
+    const nextRawInput = rawInput.length > 1 ? rawInput.slice(0, -1) : '0'
+    setRawInput(nextRawInput)
+    setDisplay(formatInput(nextRawInput))
+  }
+
+  const handleKey = (key: string) => {
+    if (isCalculating) return
+    if (/^\d$/.test(key)) return enterNumber(key)
+    if (key === '.') return enterDecimal()
+    if (key === 'C') return clear()
+    if (key === '⌫') return removeLastCharacter()
+    if (key === '%') return applyUnaryOperation('percent')
+    if (key === '√') return applyUnaryOperation('squareRoot')
+    if (key === '±') return applyUnaryOperation('sign')
+    if (key === '(' || key === ')') return enterParenthesis(key)
+    if (key === '=') return void calculateResult()
+    if (['+', '−', '×', '÷', 'xʸ'].includes(key)) return chooseOperator(key as Operator)
+  }
+
+  const handleKeyRef = useRef(handleKey)
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return
-      const mapped: Record<string, string> = { '*': '×', '/': '÷', '^': 'xʸ', Enter: '=', Escape: 'C', Delete: 'C', Backspace: '⌫', c: 'C', C: 'C', '-': '−' }
-      const key = mapped[event.key] ?? event.key
-      if (/^\d$/.test(key) || ['.', '+', '−', '×', '÷', 'xʸ', '(', ')', '%', '√', '±', '=', 'C', '⌫'].includes(key)) {
+    handleKeyRef.current = handleKey
+  })
+
+  useEffect(() => {
+    const handleKeyboard = (event: KeyboardEvent) => {
+      const keyMap: Record<string, string> = {
+        '*': '×',
+        '/': '÷',
+        '^': 'xʸ',
+        Enter: '=',
+        Escape: 'C',
+        Backspace: '⌫',
+      }
+      const key = keyMap[event.key] ?? event.key
+      if (/^\d$/.test(key) || ['.', '+', '-', '−', '*', '/', '×', '÷', '^', 'xʸ', '(', ')', '%', 'Enter', '=', 'Escape', 'Backspace'].includes(event.key)) {
         event.preventDefault()
-        void keyRef.current(key)
+        handleKeyRef.current(key === '-' ? '−' : key)
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+
+    window.addEventListener('keydown', handleKeyboard)
+    return () => window.removeEventListener('keydown', handleKeyboard)
   }, [])
 
-  return <main className="app-shell"><section className="calculator"><div className="calculator-main">
-    <button className="history-toggle" onClick={() => setShowHistory((open) => !open)} aria-expanded={showHistory} aria-controls="history-panel">
-      {showHistory ? 'Close history' : 'History'}
-    </button>
-    <Display state={state} />
-    <Keypad onKey={(key) => void handleKey(key)} disabled={state.pending} />
-  </div>
-    <HistoryPanel history={state.history} open={showHistory} onClear={() => dispatch({ type: 'clearHistory' })} onClose={() => setShowHistory(false)} />
-  </section></main>
+  return (
+    <main className="app-shell">
+      <section className="calculator">
+        <div className="calculator-main">
+          <button
+            className="history-toggle"
+            onClick={() => setShowHistory((current) => !current)}
+            aria-expanded={showHistory}
+          >
+            {showHistory ? 'Close history' : 'History'}
+          </button>
+          <div className="display">
+            <p className="display-expression">{error ?? expression}</p>
+            <strong>{display}</strong>
+          </div>
+
+          <div className="keypad">
+            {keys.flat().map((key, index) => (
+              <button
+                className={[
+                  key === 'C' && 'clear',
+                  key === '⌫' && 'delete',
+                  ['+', '−', '×', '÷'].includes(key) && 'operator',
+                  key === 'xʸ' && 'power',
+                  key === '=' && 'equals',
+                  /^\d$/.test(key) && 'digit',
+                  key === '.' && 'number',
+                  key === '0' && 'zero',
+                  !key && 'empty',
+                ].filter(Boolean).join(' ')}
+                key={`${key}-${index}`}
+                onClick={() => handleKey(key)}
+                disabled={!key || isCalculating}
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {showHistory && <button className="history-overlay" aria-label="Close history" onClick={() => setShowHistory(false)} />}
+        <aside className={`history-panel${showHistory ? ' is-open' : ''}`}>
+          <header className="history-header">
+            <h2>History</h2>
+            <div className="history-actions">
+              <button onClick={clearHistory} disabled={history.length === 0}>Clear</button>
+              <button className="history-close" onClick={() => setShowHistory(false)} aria-label="Close history">×</button>
+            </div>
+          </header>
+          <div className="history-list">
+            {history.length === 0 && (
+              <div className="empty-history">
+                <span aria-hidden="true">◷</span>
+                <p>Your operations<br />will appear here.</p>
+              </div>
+            )}
+            {history.map((item, index) => (
+              <article className="history-item" key={`${item.expression}-${index}`}>
+                <p>{item.expression}</p>
+                <strong>{item.result}</strong>
+              </article>
+            ))}
+          </div>
+        </aside>
+      </section>
+    </main>
+  )
 }
 
 export default App

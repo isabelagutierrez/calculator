@@ -28,11 +28,6 @@ button {
   cursor: pointer;
 }
 
-button:focus-visible {
-  outline: 2px solid #e8edf2;
-  outline-offset: 2px;
-}
-
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -114,6 +109,7 @@ button:focus-visible {
   color: #101216;
   font-size: 20px;
 }
+.keypad .zero { grid-column: span 2; }
 .keypad button.empty { visibility: hidden; pointer-events: none; }
 
 .history-panel {

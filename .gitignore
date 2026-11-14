@@ -1,7 +1,4 @@
 .env
 *.exe
 backend/bin/
-backend/coverage.out
-backend/coverage.html
-frontend/coverage/
 .DS_Store

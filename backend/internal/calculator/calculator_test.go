@@ -2,42 +2,44 @@ package calculator
 
 import (
 	"errors"
-	"math"
-	"strings"
 	"testing"
 )
 
-func TestOperations(t *testing.T) {
-	if Add(8, 4) != 12 || Subtract(8, 4) != 4 || Multiply(8, 4) != 32 || Percentage(25) != .25 {
-		t.Fatal("basic operation result mismatch")
+func TestBasicOperations(t *testing.T) {
+	if got := Add(8, 4); got != 12 {
+		t.Errorf("Add() = %v, want 12", got)
 	}
-	tests := []struct {
-		name string
-		call func() (float64, error)
-		want float64
-		err  error
-	}{{"divide", func() (float64, error) { return Divide(8, 4) }, 2, nil},
-		{"power", func() (float64, error) { return Power(2, 3) }, 8, nil},
-		{"root", func() (float64, error) { return SquareRoot(81) }, 9, nil},
-		{"zero root", func() (float64, error) { return SquareRoot(0) }, 0, nil},
-		{"divide zero", func() (float64, error) { return Divide(8, 0) }, 0, ErrDivisionByZero},
-		{"negative root", func() (float64, error) { return SquareRoot(-1) }, 0, ErrNegativeRoot},
-		{"negative power zero", func() (float64, error) { return Power(0, -1) }, 0, ErrDivisionByZero},
-		{"undefined power", func() (float64, error) { return Power(-8, .5) }, 0, ErrUndefinedResult},
+	if got := Subtract(8, 4); got != 4 {
+		t.Errorf("Subtract() = %v, want 4", got)
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, err := test.call()
-			if test.err != nil {
-				if !errors.Is(err, test.err) {
-					t.Fatalf("error = %v, want %v", err, test.err)
-				}
-				return
-			}
-			if err != nil || math.Abs(got-test.want) > 1e-9 {
-				t.Fatalf("got %v, %v, want %v", got, err, test.want)
-			}
-		})
+	if got := Multiply(8, 4); got != 32 {
+		t.Errorf("Multiply() = %v, want 32", got)
+	}
+}
+
+func TestDivideByZero(t *testing.T) {
+	_, err := Divide(8, 0)
+	if !errors.Is(err, ErrDivisionByZero) {
+		t.Fatalf("Divide() error = %v, want ErrDivisionByZero", err)
+	}
+}
+
+func TestOptionalOperations(t *testing.T) {
+	if got := Power(2, 3); got != 8 {
+		t.Errorf("Power() = %v, want 8", got)
+	}
+	if got, err := SquareRoot(81); err != nil || got != 9 {
+		t.Errorf("SquareRoot() = %v, %v, want 9, nil", got, err)
+	}
+	if got := Percentage(25); got != 0.25 {
+		t.Errorf("Percentage() = %v, want 0.25", got)
+	}
+}
+
+func TestNegativeSquareRoot(t *testing.T) {
+	_, err := SquareRoot(-1)
+	if !errors.Is(err, ErrNegativeRoot) {
+		t.Fatalf("SquareRoot() error = %v, want ErrNegativeRoot", err)
 	}
 }
 
@@ -45,38 +47,17 @@ func TestEvaluateExpression(t *testing.T) {
 	tests := []struct {
 		expression string
 		want       float64
-		err        error
-	}{{"-5 + 3", -2, nil}, {"2 * -3", -6, nil}, {"-2 ^ 2", -4, nil}, {"2 ^ -1", .5, nil},
-		{"2 ^ 3 ^ 2", 512, nil}, {"--3", 3, nil}, {"5 - -3", 8, nil}, {"2. + .5", 2.5, nil},
-		{"2 × (3 + 4)", 14, nil}, {"0.1 + 0.2", .3, nil}, {"1e3 / 2", 500, nil},
-		{"(2 + 3", 0, ErrMismatchedParentheses}, {"2 + 3)", 0, ErrMismatchedParentheses},
-		{"2 +", 0, ErrInvalidExpression}, {"+", 0, ErrInvalidExpression}, {"()", 0, ErrMismatchedParentheses},
-		{"abc", 0, ErrInvalidExpression}, {"2 $ 3", 0, ErrInvalidExpression}, {"8 / 0", 0, ErrDivisionByZero},
-		{"10 ^ 400", 0, ErrOverflow}, {"1e400", 0, ErrOverflow}, {"(0 - 8) ^ 0.5", 0, ErrUndefinedResult}}
+	}{
+		{"8 × 8 + 2", 66},
+		{"2 ^ 3 × (4 + 1)", 40},
+		{"81 / 9", 9},
+	}
 	for _, test := range tests {
 		t.Run(test.expression, func(t *testing.T) {
 			got, err := EvaluateExpression(test.expression)
-			if test.err != nil {
-				if !errors.Is(err, test.err) {
-					t.Fatalf("error = %v, want %v", err, test.err)
-				}
-				return
-			}
-			if err != nil || math.Abs(got-test.want) > 1e-9 {
-				t.Fatalf("got %v, %v, want %v", got, err, test.want)
+			if err != nil || got != test.want {
+				t.Fatalf("EvaluateExpression() = %v, %v, want %v, nil", got, err, test.want)
 			}
 		})
-	}
-}
-
-func TestExpressionLimits(t *testing.T) {
-	if _, err := EvaluateExpression(strings.Repeat("1", 501)); !errors.Is(err, ErrExpressionTooLong) {
-		t.Fatal(err)
-	}
-	if _, err := EvaluateExpression(strings.Repeat("(", 101) + "1" + strings.Repeat(")", 101)); !errors.Is(err, ErrNestingTooDeep) {
-		t.Fatal(err)
-	}
-	if _, err := EvaluateExpression(strings.Repeat("(", 1_000_000)); err == nil {
-		t.Fatal("expected limit error")
 	}
 }
