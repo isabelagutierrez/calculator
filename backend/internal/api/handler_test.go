@@ -61,6 +61,7 @@ func TestValidationErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
 
@@ -78,5 +79,16 @@ func TestHealthEndpoint(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.Code)
+	}
+}
+
+func TestCalculateNegativeExpression(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/api/calculate", strings.NewReader(`{"expression":"-2 + 3"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	NewHandler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"result":1`) {
+		t.Fatalf("status = %d, body = %q", response.Code, response.Body.String())
 	}
 }

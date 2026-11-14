@@ -2,6 +2,8 @@ package calculator
 
 import (
 	"errors"
+	"math"
+	"strings"
 	"testing"
 )
 
@@ -47,17 +49,52 @@ func TestEvaluateExpression(t *testing.T) {
 	tests := []struct {
 		expression string
 		want       float64
+		err        error
 	}{
-		{"8 × 8 + 2", 66},
-		{"2 ^ 3 × (4 + 1)", 40},
-		{"81 / 9", 9},
+		{"-2 + 3", 1, nil},
+		{"2 * -3", -6, nil},
+		{"3 - -2", 5, nil},
+		{"--2", 2, nil},
+		{"+5", 5, nil},
+		{"-2 ^ 2", -4, nil},
+		{"(-2) ^ 2", 4, nil},
+		{"2 ^ -1", 0.5, nil},
+		{"2 ^ 3 ^ 2", 512, nil},
+		{"-(2 + 3)", -5, nil},
+		{"4 / -2", -2, nil},
+		{"1e3 + 1", 1001, nil},
+		{".5 + .5", 1, nil},
+		{"2 × 3", 6, nil},
+		{"8 / 0", 0, ErrDivisionByZero},
+		{"-", 0, ErrInvalidExpression},
+		{"2 +", 0, ErrInvalidExpression},
+		{"()", 0, ErrInvalidExpression},
+		{"2 3", 0, ErrInvalidExpression},
+		{"(2", 0, ErrInvalidExpression},
+		{"2)", 0, ErrInvalidExpression},
+		{"* 3", 0, ErrInvalidExpression},
 	}
 	for _, test := range tests {
 		t.Run(test.expression, func(t *testing.T) {
 			got, err := EvaluateExpression(test.expression)
-			if err != nil || got != test.want {
-				t.Fatalf("EvaluateExpression() = %v, %v, want %v, nil", got, err, test.want)
+			if test.err != nil {
+				if !errors.Is(err, test.err) {
+					t.Fatalf("EvaluateExpression() error = %v, want %v", err, test.err)
+				}
+				return
+			}
+			if err != nil || math.Abs(got-test.want) > 1e-9 {
+				t.Fatalf("EvaluateExpression() = %v, %v, want %v", got, err, test.want)
 			}
 		})
+	}
+}
+
+func TestExpressionLimits(t *testing.T) {
+	if _, err := EvaluateExpression(strings.Repeat("1", MaxExpressionLength+1)); err == nil {
+		t.Fatal("expected long expression error")
+	}
+	if _, err := EvaluateExpression(strings.Repeat("(", MaxNestingDepth+1) + "1" + strings.Repeat(")", MaxNestingDepth+1)); !errors.Is(err, ErrNestingTooDeep) {
+		t.Fatalf("error = %v, want nesting limit", err)
 	}
 }

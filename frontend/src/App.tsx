@@ -109,9 +109,18 @@ function App() {
 
   const chooseOperator = (selectedOperator: Operator) => {
     try {
+      if (selectedOperator === '−' && !expression && display === '0' && rawInput === '0') {
+        setDisplay('-0')
+        setRawInput('-0')
+        setWaitingForOperand(false)
+        setError(null)
+        return
+      }
       if (waitingForOperand) {
         if (expression.trim().endsWith(')')) {
           setExpression((current) => `${current} ${selectedOperator} `)
+        } else if (selectedOperator === '−' && /[+−×÷xʸ]\s$/.test(expression)) {
+          setExpression((current) => `${current}− `)
         } else {
           setExpression((current) => current.replace(/[+−×÷xʸ]\s*$/, `${selectedOperator} `))
         }

@@ -98,8 +98,21 @@ Content-Type: application/json
 { "expression": "8 × 8 + (2 ^ 3)" }
 ```
 
-The evaluator supports `+`, `-`, `×`, `÷`, `^`, and parentheses. The
-`/health` endpoint returns `{ "status": "ok" }`.
+The evaluator uses this grammar:
+
+```text
+expression = term { ("+" | "-") term }
+term       = unary { ("*" | "/") unary }
+unary      = { "+" | "-" } power
+power      = primary [ "^" unary ]
+primary    = number | "(" expression ")"
+```
+
+Unary signs are accepted in a loop, so `--2` is valid. Exponentiation binds
+more tightly than a unary minus, making `-2 ^ 2` equal to `-4`; parentheses
+make `(-2) ^ 2` equal to `4`. The `^` operator is right-associative, so
+`2 ^ 3 ^ 2` equals `512`. The evaluator also supports `+`, `-`, `×`, `÷`,
+`^`, and parentheses. The `/health` endpoint returns `{ "status": "ok" }`.
 
 Errors use a JSON response such as:
 
