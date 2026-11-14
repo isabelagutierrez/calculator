@@ -76,7 +76,30 @@ describe('Calculator interface', () => {
     await user.click(screen.getByRole('button', { name: '±' }))
     expect(document.querySelector('.display strong')).toHaveTextContent('-1')
     await user.click(screen.getByRole('button', { name: 'C' }))
-    expect(document.querySelector('.display strong')).toHaveTextContent('0')
+    expect(document.querySelector('.display strong')).toHaveTextContent('')
+  })
+
+  it('continues a calculation from the previous result', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(10))
+      .mockResolvedValueOnce(response(15))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '5' }))
+    await user.click(screen.getByRole('button', { name: '+' }))
+    await user.click(screen.getByRole('button', { name: '5' }))
+    await user.click(screen.getByRole('button', { name: '=' }))
+    await waitFor(() => expect(document.querySelector('.display strong')).toHaveTextContent('10'))
+
+    await user.click(screen.getByRole('button', { name: '+' }))
+    await user.click(screen.getByRole('button', { name: '5' }))
+    await user.click(screen.getByRole('button', { name: '=' }))
+    await waitFor(() => expect(document.querySelector('.display strong')).toHaveTextContent('15'))
+    expect(fetchMock).toHaveBeenLastCalledWith(expect.any(URL), expect.objectContaining({
+      body: JSON.stringify({ expression: '10 + 5' }),
+    }))
   })
 
   it('supports keyboard input and history drawer controls', async () => {
@@ -111,7 +134,7 @@ describe('Calculator interface', () => {
     await user.click(screen.getByRole('button', { name: '3' }))
     await user.click(screen.getByRole('button', { name: '=' }))
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({
-      body: JSON.stringify({ expression: '-02 − − 3' }),
+      body: JSON.stringify({ expression: '-2 − − 3' }),
     })))
 
     await user.click(screen.getByRole('button', { name: 'C' }))

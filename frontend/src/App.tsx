@@ -31,8 +31,8 @@ const formatInput = (value: string) => {
 }
 
 function App() {
-  const [display, setDisplay] = useState('0')
-  const [rawInput, setRawInput] = useState('0')
+  const [display, setDisplay] = useState('')
+  const [rawInput, setRawInput] = useState('')
   const [expression, setExpression] = useState('')
   const [waitingForOperand, setWaitingForOperand] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -47,8 +47,8 @@ function App() {
   }
 
   const clear = () => {
-    setDisplay('0')
-    setRawInput('0')
+    setDisplay('')
+    setRawInput('')
     setExpression('')
     setWaitingForOperand(false)
     setError(null)
@@ -100,7 +100,7 @@ function App() {
       return
     }
     if (!rawInput.includes('.')) {
-      const nextRawInput = `${rawInput}.`
+      const nextRawInput = rawInput ? `${rawInput}.` : '0.'
       setRawInput(nextRawInput)
       setDisplay(nextRawInput)
       setExpression((current) => current ? `${current}.` : nextRawInput)
@@ -109,15 +109,17 @@ function App() {
 
   const chooseOperator = (selectedOperator: Operator) => {
     try {
-      if (selectedOperator === '−' && !expression && display === '0' && rawInput === '0') {
-        setDisplay('-0')
-        setRawInput('-0')
+      if (selectedOperator === '−' && !expression && !display && !rawInput) {
+        setDisplay('-')
+        setRawInput('-')
         setWaitingForOperand(false)
         setError(null)
         return
       }
       if (waitingForOperand) {
-        if (expression.trim().endsWith(')')) {
+        if (!expression.trim()) {
+          setExpression(`${display} ${selectedOperator} `)
+        } else if (expression.trim().endsWith(')')) {
           setExpression((current) => `${current} ${selectedOperator} `)
         } else if (selectedOperator === '−' && /[+−×÷xʸ]\s$/.test(expression)) {
           setExpression((current) => `${current}− `)
