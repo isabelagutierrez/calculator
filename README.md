@@ -128,7 +128,8 @@ npm run lint
 ```
 
 The root [Makefile](Makefile) also provides `make backend`, `make frontend`,
-and `make test` targets when Make is available.
+`make test`, `make docker-up`, `make docker-down`, `make docker-build`, and
+`make docker-logs` targets when Make is available.
 
 ## Docker
 
@@ -146,6 +147,15 @@ Stop the containers with:
 
 ```powershell
 docker compose down
+```
+
+The same Docker commands are available through Make:
+
+```powershell
+make docker-up       # Build and start the application
+make docker-down     # Stop and remove containers
+make docker-build    # Build images without starting them
+make docker-logs     # Follow container logs
 ```
 
 ## Design rationale
