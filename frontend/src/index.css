@@ -109,7 +109,6 @@ button {
   color: #101216;
   font-size: 20px;
 }
-.keypad .zero { grid-column: span 2; }
 .keypad button.empty { visibility: hidden; pointer-events: none; }
 
 .history-panel {

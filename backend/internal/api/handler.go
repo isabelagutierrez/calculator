@@ -34,15 +34,25 @@ type errorResponse struct {
 
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", health)
-	mux.HandleFunc("POST /api/add", binary(add))
-	mux.HandleFunc("POST /api/subtract", binary(subtract))
-	mux.HandleFunc("POST /api/multiply", binary(multiply))
-	mux.HandleFunc("POST /api/divide", binaryWithError(divide))
-	mux.HandleFunc("POST /api/power", binary(power))
-	mux.HandleFunc("POST /api/square-root", unary(squareRoot))
-	mux.HandleFunc("POST /api/percentage", unary(percentage))
-	mux.HandleFunc("POST /api/calculate", calculateExpression)
+	register := func(path, method string, handler http.HandlerFunc) {
+		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Allow", method)
+			writeError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
+		})
+		mux.HandleFunc(method+" "+path, handler)
+	}
+	register("/health", http.MethodGet, health)
+	register("/api/add", http.MethodPost, binary(add))
+	register("/api/subtract", http.MethodPost, binary(subtract))
+	register("/api/multiply", http.MethodPost, binary(multiply))
+	register("/api/divide", http.MethodPost, binaryWithError(divide))
+	register("/api/power", http.MethodPost, binary(power))
+	register("/api/square-root", http.MethodPost, unary(squareRoot))
+	register("/api/percentage", http.MethodPost, unary(percentage))
+	register("/api/calculate", http.MethodPost, calculateExpression)
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		writeError(w, http.StatusNotFound, errors.New("resource not found"))
+	})
 	return withCORS(mux)
 }
 

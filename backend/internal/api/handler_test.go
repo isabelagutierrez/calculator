@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -79,6 +80,40 @@ func TestHealthEndpoint(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.Code)
+	}
+}
+
+func TestJSONRoutingErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		status int
+	}{
+		{"invalid JSON", http.MethodPost, "/api/add", "not-json", http.StatusBadRequest},
+		{"missing field", http.MethodPost, "/api/add", `{"left":8}`, http.StatusBadRequest},
+		{"wrong type", http.MethodPost, "/api/add", `{"left":"8","right":4}`, http.StatusBadRequest},
+		{"method not allowed", http.MethodGet, "/api/add", "", http.StatusMethodNotAllowed},
+		{"not found", http.MethodGet, "/does-not-exist", "", http.StatusNotFound},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(test.method, test.path, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			NewHandler().ServeHTTP(response, request)
+			if response.Code != test.status {
+				t.Fatalf("status = %d, want %d", response.Code, test.status)
+			}
+			var payload map[string]string
+			if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if payload["error"] == "" {
+				t.Fatalf("response has no error: %#v", payload)
+			}
+		})
 	}
 }
 
