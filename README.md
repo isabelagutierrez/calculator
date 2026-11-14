@@ -13,7 +13,7 @@ A full-stack calculator with a React and TypeScript frontend and a Go REST API.
 
 ## Requirements
 
-- Go 1.27.4 or newer
+- Go 1.22+
 - Node.js 20 or newer
 - npm
 
