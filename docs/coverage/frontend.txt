@@ -1,0 +1,10 @@
+Vitest 5.1.0 coverage snapshot:
+
+```text
+Statements 89.69%
+Branches   82.62%
+Functions  94.87%
+Lines      97.68%
+```
+
+The live HTML and LCOV reports are written under `frontend/coverage/`.
