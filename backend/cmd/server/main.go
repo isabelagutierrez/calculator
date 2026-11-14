@@ -16,13 +16,14 @@ import (
 func main() {
 	ctx, cancel := signalContext()
 	defer cancel()
-	if err := run(ctx, api.NewHandler()); err != nil {
+	addr, config := serverConfig()
+	if err := run(ctx, addr, api.NewHandler(config)); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context, handler http.Handler) error {
-	server := newServer(":8080", handler)
+func run(ctx context.Context, addr string, handler http.Handler) error {
+	server := newServer(addr, handler)
 	serverErrors := make(chan error, 1)
 	go func() {
 		log.Println("listening on", server.Addr)
@@ -56,4 +57,17 @@ func newServer(addr string, handler http.Handler) *http.Server {
 
 func signalContext() (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+}
+
+func envOrDefault(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func serverConfig() (string, api.Config) {
+	return ":" + envOrDefault("PORT", "8080"), api.Config{
+		CORSAllowedOrigin: envOrDefault("CORS_ALLOWED_ORIGIN", "*"),
+	}
 }

@@ -1,5 +1,7 @@
 # Calculator
 
+[![CI](https://github.com/isabelagutierrez/calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/isabelagutierrez/calculator/actions/workflows/ci.yml)
+
 A full-stack calculator with a React and TypeScript frontend and a Go REST API.
 
 ## Features
@@ -14,7 +16,7 @@ A full-stack calculator with a React and TypeScript frontend and a Go REST API.
 ## Requirements
 
 - Go 1.22+
-- Node.js 20 or newer
+- Node.js 22.12 or newer
 - npm
 
 ## Run locally
@@ -28,6 +30,9 @@ go run ./cmd/server
 
 The API listens on `http://localhost:8080`.
 
+The backend reads `PORT` (default `8080`) and `CORS_ALLOWED_ORIGIN`
+(default `*`) from the environment.
+
 In another terminal, start the frontend:
 
 ```powershell
@@ -38,6 +43,9 @@ npm run dev
 
 The Vite development server listens on `http://localhost:5173` and proxies
 `/api` requests to the backend.
+
+Set `VITE_API_BASE_URL` when the frontend should call an API at a different
+origin; otherwise it uses the current browser origin.
 
 To access the frontend from a phone on the same local network:
 

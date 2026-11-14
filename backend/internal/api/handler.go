@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"math"
+	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/isabelagutierrez/calculator/backend/internal/calculator"
 )
@@ -32,7 +35,18 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-func NewHandler() http.Handler {
+const maxBodyBytes int64 = 8 << 10
+
+var (
+	errBodyTooLarge         = errors.New("request body exceeds 8 KiB limit")
+	errUnsupportedMediaType = errors.New("Content-Type must be application/json")
+)
+
+type Config struct {
+	CORSAllowedOrigin string
+}
+
+func NewHandler(config Config) http.Handler {
 	mux := http.NewServeMux()
 	register := func(path, method string, handler http.HandlerFunc) {
 		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
@@ -53,7 +67,7 @@ func NewHandler() http.Handler {
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, errors.New("resource not found"))
 	})
-	return withCORS(mux)
+	return withMiddleware(mux, config)
 }
 
 func health(w http.ResponseWriter, _ *http.Request) {
@@ -64,7 +78,7 @@ func binary(operation func(float64, float64) float64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		request, err := decodeBinary(r)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
+			writeDecodeError(w, err)
 			return
 		}
 		writeResult(w, operation(*request.Left, *request.Right))
@@ -75,7 +89,7 @@ func binaryWithError(operation func(float64, float64) (float64, error)) http.Han
 	return func(w http.ResponseWriter, r *http.Request) {
 		request, err := decodeBinary(r)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
+			writeDecodeError(w, err)
 			return
 		}
 		result, err := operation(*request.Left, *request.Right)
@@ -91,7 +105,7 @@ func unary(operation func(float64) (float64, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		request, err := decodeUnary(r)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
+			writeDecodeError(w, err)
 			return
 		}
 		result, err := operation(*request.Value)
@@ -134,7 +148,7 @@ func percentage(value float64) (float64, error) {
 func calculateExpression(w http.ResponseWriter, r *http.Request) {
 	var request expressionRequest
 	if err := decodeJSON(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		writeDecodeError(w, err)
 		return
 	}
 	if request.Expression == nil || strings.TrimSpace(*request.Expression) == "" {
@@ -181,9 +195,18 @@ func decodeJSON(r *http.Request, destination interface{}) error {
 	if r.Body == nil {
 		return errors.New("request body is required")
 	}
+	contentType := r.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "application/json" {
+		return errUnsupportedMediaType
+	}
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			return errBodyTooLarge
+		}
 		return errors.New("request body must be valid JSON")
 	}
 	var extra interface{}
@@ -209,21 +232,50 @@ func writeError(w http.ResponseWriter, status int, err error) {
 	writeJSON(w, status, errorResponse{Error: err.Error()})
 }
 
+func writeDecodeError(w http.ResponseWriter, err error) {
+	status := http.StatusBadRequest
+	if errors.Is(err, errUnsupportedMediaType) {
+		status = http.StatusUnsupportedMediaType
+	} else if errors.Is(err, errBodyTooLarge) {
+		status = http.StatusRequestEntityTooLarge
+	}
+	writeError(w, status, err)
+}
+
 func writeJSON(w http.ResponseWriter, status int, value interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
 }
 
-func withCORS(next http.Handler) http.Handler {
+func withMiddleware(next http.Handler, config Config) http.Handler {
+	origin := config.CORSAllowedOrigin
+	if origin == "" {
+		origin = "*"
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		start := time.Now()
+		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		defer func() {
+			slog.Info("http request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"duration", time.Since(start),
+			)
+		}()
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				slog.Error("panic recovered", "method", r.Method, "path", r.URL.Path)
+				writeError(w, http.StatusInternalServerError, errors.New("internal server error"))
+			}
+		}()
 		next.ServeHTTP(w, r)
 	})
 }
